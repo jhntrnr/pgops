@@ -28,11 +28,11 @@ Player hands are identical to BGOPS, but the deck has an additional 13 cards. Th
 ## Bots
 The primary goal of PGOPS is to facillitate the creation of bots--AI players that play the game with no human input.
 
-A template for bot creation can be found at /bots/examples/bot_template.py
+A template for bot creation can be found at [pgops/bots/examples/bot_template.py](pgops/bots/examples/bot_template.py)
 
-See /bots/README.md for bot creation rules and guidelines.
+See [pgops/bots/README.md](pgops/bots/README.md) for bot creation rules and guidelines.
 
 ### Tournaments
 PGOPS supports round robin tournaments between bots.
 
-See /matchmaking/README.md for further information, and tourney.py for a simple tournament between example bots.
+See [pgops/matchmaking/README.md](pgops/matchmaking/README.md) for further information, and [tourney.py](tourney.py) for a simple tournament between some example bots.
