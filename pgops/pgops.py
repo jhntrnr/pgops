@@ -80,8 +80,8 @@ class Pgops:
             turn_result.append("b_spy")
             if self.logging:
                 print('player_b played spy')
+            self.player_a.reveal_hand()
             if either_spied:
-                self.player_a.reveal_hand()
                 self.player_b.unfreeze_self()
             else:
                 self.player_a.freeze_self()
