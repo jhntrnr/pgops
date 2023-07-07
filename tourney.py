@@ -3,6 +3,7 @@ from pgops.bots.examples.matching_player import MatchingPlayer
 from pgops.bots.examples.memory_plus import MemoryPlus
 from pgops.bots.examples.adaptive_gops import AdaptiveGops
 from pgops.bots.examples.odd_even import OddEvenBot
+from pgops.bots.examples.match_plus_random import MatchPlusRandom
 
 from pgops.matchmaking.pgops_orchestrator import Orchestrator
 
@@ -24,6 +25,6 @@ if __name__ == "__main__":
     c = AdaptiveGops(game_type)
     d = MemoryPlus(game_type)
     e = OddEvenBot(game_type)
-
-    player_pool = [a,b,c,d,e]
+    f = MatchPlusRandom(game_type)
+    player_pool = [a,b,c,d,e,f]
     Orchestrator(game_type=game_type, player_pool=player_pool, tournament_style="round_robin",matches_per_pairing=2, games_per_match=1000)
