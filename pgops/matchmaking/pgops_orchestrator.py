@@ -25,6 +25,7 @@ class Orchestrator:
         for i, player in enumerate(self.player_pool):
             self.records[player.bot_name] = {
                 "player": player,
+                "elo": 1500,
                 "games_played": 0,
                 "matches_played": 0,
                 "games_won": 0,
@@ -34,11 +35,29 @@ class Orchestrator:
                 "matches_lost": 0,
                 "matches_drawn": 0
             }
-        for i, player_a in enumerate(self.player_pool):
-            for j, player_b in enumerate(self.player_pool):
-                if i != j:
-                    self.play_matches(player_a, player_b)
+        schedule = self.round_robin_schedule(len(self.player_pool))
+        for tournament_round in schedule:
+            for pairing in tournament_round:
+                player_a = self.player_pool[pairing[0]]
+                player_b = self.player_pool[pairing[1]]
+                self.play_matches(player_a, player_b)
         self.pretty_print(self.records, indent=0)
+
+    def round_robin_schedule(self, n):
+        """
+        Generate a round-robin tournament schedule for `n` teams.
+        https://stackoverflow.com/a/14171731
+        """
+        m = n + n % 2
+        for r in range(m - 1):
+            def pairing():
+                if r < n - 1:
+                    yield r, n - 1
+                for i in range(m // 2 - 1):
+                    p, q = (r + i + 1) % (m - 1), (m + r - i - 2) % (m - 1)
+                    if p < n - 1 and q < n - 1:
+                        yield p, q
+            yield list(pairing())
 
     def play_matches(self, player_a, player_b):
         a_matches_won = 0
@@ -95,14 +114,21 @@ class Orchestrator:
                 score = game.score_players()
                 player_a.game_over(score[0], score[1])
                 player_b.game_over(score[1], score[0])
+                
                 if score[0] > score[1]:
+                    elo_result = 1
                     a_games_won += 1
                     b_games_lost += 1
                 elif score[1] > score[0]:
+                    elo_result = 0
                     b_games_won += 1
                     a_games_lost += 1
                 else:
+                    elo_result = 0.5
                     games_drawn += 1
+                new_elo = record_match(self.records[player_a.bot_name]['elo'], self.records[player_b.bot_name]['elo'], elo_result)
+                self.records[player_a.bot_name]['elo'] = new_elo[0]
+                self.records[player_b.bot_name]['elo'] = new_elo[1]
             self.records[player_a.bot_name]['games_played'] += games_played
             self.records[player_a.bot_name]['games_won'] += a_games_won
             self.records[player_a.bot_name]['games_lost'] += a_games_lost
@@ -139,3 +165,38 @@ class Orchestrator:
                 self.pretty_print(value, indent+1)
             else:
                 print('\t' * (indent+1) + str(value))
+
+def record_match(player, opponent, result, k=30):
+    """Updates ELO of player and opponent
+    result is 0 for a loss; 0.5 for a draw; 1 for a win
+    result is from the perspective of 'player'
+    """
+    expected_player = compare_rating(player, opponent)
+    expected_opponent = compare_rating(opponent, player)
+
+    if result == 0.5:
+        score_player = 0.5
+        score_opponent = 0.5
+
+    elif result == 1:
+        score_player = 1.0
+        score_opponent = 0.0
+
+    else:
+        score_player = 0.0
+        score_opponent = 1.0
+
+    new_player = player + k * (score_player - expected_player)
+    new_opponent = opponent + k * (score_opponent - expected_opponent)
+    if new_player < 0:
+        new_player = 0
+        new_opponent = opponent - player
+    if new_opponent < 0:
+        new_opponent = 0
+        new_player = player - opponent
+    player = new_player
+    opponent = new_opponent
+    return(player, opponent)
+
+def compare_rating(player, opponent):
+    return ( 1+10**((opponent-player)/400.0)) ** -1
