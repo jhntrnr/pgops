@@ -6,6 +6,7 @@ from pgops.bots.examples.odd_even import OddEvenBot
 from pgops.bots.examples.match_plus_random import MatchPlusRandom
 from pgops.bots.examples.match_plus_cycle import MatchPlusCycle
 from pgops.bots.examples.my_least_common import MyLeastCommon
+from pgops.bots.examples.adaptive_gops_v2 import AdaptiveGopsV2
 
 from pgops.matchmaking.pgops_orchestrator import Orchestrator
 
@@ -29,6 +30,7 @@ if __name__ == "__main__":
     f = MatchPlusRandom(game_type)
     g = MatchPlusCycle(game_type)
     h = MyLeastCommon(game_type)
+    i = AdaptiveGopsV2(game_type)
 
-    player_pool = [a,b,c]
+    player_pool = [c,i]
     Orchestrator(game_type=game_type, player_pool=player_pool, tournament_style="round_robin",matches_per_pairing=4, games_per_match=1000, num_tournaments=3)
