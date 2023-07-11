@@ -49,14 +49,7 @@ class PgopsBot:
         return self.game.masked_game_state()
 
     def get_current_bid_target(self):
-        """Returns information about the current bid target in a dict:
-        card_dict = {
-            "card_value": Int,
-            "card_state": CardState,
-            "card_suit": Str,
-            "card_reference": Card
-        }
-        """
+        """Returns the current bid target:"""
         state = self.get_state()
         for card_dict in state['deck_state']:
             if card_dict['card_reference'].state == CardState.current_bid_target:
@@ -64,14 +57,7 @@ class PgopsBot:
         return None
     
     def get_all_bid_targets(self):
-        """Returns a list of dicts of information about all active bid targets, including pushed targets.
-        card_dict = {
-            "card_value": Int,
-            "card_state": CardState,
-            "card_suit": Str,
-            "card_reference": Card
-        }
-        """
+        """Returns a list of all active bid targets, including pushed targets."""
         all_targets = []
         state = self.get_state()
         for card_dict in state['deck_state']:
@@ -80,14 +66,7 @@ class PgopsBot:
         return all_targets
 
     def get_playable_cards_in_own_hand(self):
-        """Returns a list of dicts of information about all playable cards in own hand.
-        card_dict = {
-            "card_value": Int,
-            "card_state": CardState,
-            "card_name": Str,
-            "card_reference": Card
-        }
-        """
+        """Returns a list of all playable card objects in own hand."""
         playable_hand = []
         state = self.get_state()
         for card_dict in state[f'{self.player_name}_cards']:
@@ -98,29 +77,24 @@ class PgopsBot:
     def get_playable_cards_in_opponent_hand(self):
         """Returns a list of dicts of information about all playable cards in opponent's hand.
         Opponent's current sealed bid shows up as in their hand.
-        card_dict = {
+        return_value = [{
             "card_value": Int,
-            "card_state": CardState,
             "card_name": Str,
-            "card_reference": Card
-        }
+        }]
         """
         opponent_hand = []
         state = self.get_state()
         for card_dict in state[f'{self.opponent_name}_cards']:
-            if card_dict['card_reference'].state in [CardState.player_a_hand, CardState.player_b_hand]:
-                opponent_hand.append(card_dict['card_reference'])
+            if card_dict['card_reference'].state in [CardState.player_a_hand, CardState.player_b_hand, CardState.player_a_sealed_bid, CardState.player_b_sealed_bid]:
+                opponent_hand.append({
+                    "card_value": card_dict['card_reference'].value,
+                    "card_name": card_dict['card_reference'].name
+                })
         return opponent_hand
     
     def get_all_cards_in_own_playzone(self):
-        """Returns a list of dicts of information about all cards in own playzone.
+        """Returns a list of cards in own playzone.
         Generally these are any played cards visible to both players.
-        card_dict = {
-            "card_value": Int,
-            "card_state": CardState,
-            "card_name": Str,
-            "card_reference": Card
-        }
         """
         playzone = []
         state = self.get_state()
@@ -132,27 +106,26 @@ class PgopsBot:
     def get_all_cards_in_opponent_playzone(self):
         """Returns a list of dicts of information about all cards in opponent's playzone.
         Generally these are any played cards visible to both players.
-        card_dict = {
+        return_value = [{
             "card_value": Int,
-            "card_state": CardState,
             "card_name": Str,
-            "card_reference": Card
-        }
+        }]
         """
         playzone = []
         state = self.get_state()
         for card_dict in state[f'{self.opponent_name}_cards']:
             if card_dict['card_reference'].state in [CardState.player_a_playzone, CardState.player_b_playzone]:
-                playzone.append(card_dict['card_reference'])
+                playzone.append({
+                    "card_value": card_dict['card_reference'].value,
+                    "card_name": card_dict['card_reference'].name
+                })
         return playzone
     
     def get_opponent_sealed_bid(self):
         """Returns a dict of information about opponent's sealed bid if own Spy was played last turn. Else None.
-        card_dict = {
+        return_value = {
             "card_value": Int,
-            "card_state": CardState,
             "card_name": Str,
-            "card_reference": Card
         }
         """
         if not self.game.players[self.opponent_name].frozen:
@@ -161,7 +134,10 @@ class PgopsBot:
             state = self.get_state()
             for card_dict in state[f'{self.opponent_name}_cards']:
                 if card_dict['card_reference'].state in [CardState.player_a_sealed_bid, CardState.player_b_sealed_bid]:
-                    return card_dict['card_reference']
+                    return {
+                        "card_value": card_dict['card_reference'].value,
+                        "card_name": card_dict['card_reference'].name
+                    }
             return None
     
     def get_own_score(self):

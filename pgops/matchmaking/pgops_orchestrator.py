@@ -1,33 +1,43 @@
 import random
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 from ..pgops import Pgops
 
 class Orchestrator:
-    SUPPORTED_TOURNAMENTS = ["round_robin"]
+    SUPPORTED_TOURNAMENT_FORMATS = ["round_robin", "random_matches"]
     SUPPORTED_GAME_TYPES = ["gops", "bgops", "bgops_minus"]
     STARTING_ELO = 1500
     ELO_K = 30
 
-    def __init__(self, game_type, player_pool, tournament_style, matches_per_pairing=3, games_per_match=1000, num_tournaments=1):
+    def __init__(self, game_type, player_pool, tournament_format, matches_per_pairing=3, games_per_match=1000, num_tournaments=1):
         if game_type not in self.SUPPORTED_GAME_TYPES:
             raise Exception(f'Game type "{game_type}" not supported. Pick from {self.SUPPORTED_GAME_TYPES}')
         else:
             self.game_type = game_type
 
-        if tournament_style not in self.SUPPORTED_TOURNAMENTS:
-            raise Exception(f'Tournament style "{tournament_style}" not supported. Pick from: {self.SUPPORTED_TOURNAMENTS}')
+        if tournament_format not in self.SUPPORTED_TOURNAMENT_FORMATS:
+            raise Exception(f'Tournament style "{tournament_style}" not supported. Pick from: {self.SUPPORTED_TOURNAMENT_FORMATS}')
         else:
-            self.tournament_style = tournament_style
+            self.tournament_format = tournament_format
         
         self.player_pool = player_pool
         self.matches_per_pairing = matches_per_pairing
         self.games_per_match = games_per_match
         self.num_tournaments = num_tournaments
 
-        print(f'Starting {tournament_style} tournament of {game_type} with {len(player_pool)} players, {matches_per_pairing} matches per pairing, {games_per_match} games per match.')
+        print(f'Starting {tournament_format} tournament of {game_type} with {len(player_pool)} players, {matches_per_pairing} matches per pairing, {games_per_match} games per match.')
 
         self.records = self.initialize_records()
-        self.run_tournament()
+        self.pairwise_records = {}
+
+        self.pairwise_results = {}
+
+        if tournament_format == "round_robin":
+            self.run_round_robin_tournament()
+        elif tournament_format == "random_matches":
+            self.run_random_tournament()
 
     def initialize_records(self):
         records = {}
@@ -45,6 +55,18 @@ class Orchestrator:
                 "matches_drawn": 0
             }
         return records
+    
+    def initialize_record(self, bot_name):
+        record = {
+            "name": bot_name,
+            "pairwise_elo": self.STARTING_ELO,
+            "games_played": 0,
+            "matches_played": 0,
+            "games_won": 0,
+            "games_lost": 0,
+            "games_drawn": 0
+        }
+        return record
 
     def round_robin_schedule(self, n):
         """
@@ -62,7 +84,7 @@ class Orchestrator:
                         yield p, q
             yield list(pairing())
 
-    def run_tournament(self):
+    def run_round_robin_tournament(self):
         for i in range(self.num_tournaments):
             random.shuffle(self.player_pool)
             schedule = self.round_robin_schedule(len(self.player_pool))
@@ -71,14 +93,25 @@ class Orchestrator:
                     player_a = self.player_pool[pairing[0]]
                     player_b = self.player_pool[pairing[1]]
                     self.play_matches(player_a, player_b)
-        self.pretty_print(self.records, indent=0)
+        
+        self.pretty_print(self.records)
+        self.visualize_results()
+
+    def run_random_tournament(self):
+        for i in range(self.num_tournaments):
+            players = random.sample(self.player_pool, 2)
+            player_a = players[0]
+            player_b = players[1]
+            self.play_matches(player_a, player_b)
+        
+        self.pretty_print(self.records)
+        self.visualize_results()
 
     def play_matches(self, player_a, player_b):
-        print(f'Starting pairing between {player_a.bot_name} and {player_b.bot_name}')
-        
         for i in range(self.matches_per_pairing):
             match_results = self.play_match(player_a, player_b)
             self.update_match_results(player_a, player_b, match_results)
+            self.update_pairwise_records(player_a, player_b, match_results)
 
     def play_match(self, player_a, player_b):
         match_results = {
@@ -148,9 +181,20 @@ class Orchestrator:
         return elo_result
 
     def update_game_results(self, match_results, elo_result):
+        pair_key = tuple(sorted((match_results['a_bot_name'], match_results['b_bot_name'])))
+        if pair_key not in self.pairwise_records:
+            self.pairwise_records[pair_key] = {
+                match_results['a_bot_name']: self.initialize_record(match_results['a_bot_name']),
+                match_results['b_bot_name']: self.initialize_record(match_results['b_bot_name'])
+            }
         new_elo = self.record_match(self.records[match_results['a_bot_name']]['elo'], self.records[match_results['b_bot_name']]['elo'], elo_result)
+        new_pairwise_elo = self.record_match(self.pairwise_records[pair_key][match_results['a_bot_name']]['pairwise_elo'], self.pairwise_records[pair_key][match_results['b_bot_name']]['pairwise_elo'], elo_result)
+
         self.records[match_results['a_bot_name']]['elo'] = new_elo[0]
         self.records[match_results['b_bot_name']]['elo'] = new_elo[1]
+        self.pairwise_records[pair_key][match_results['a_bot_name']]['pairwise_elo'] = new_pairwise_elo[0]
+        self.pairwise_records[pair_key][match_results['b_bot_name']]['pairwise_elo'] = new_pairwise_elo[1]
+        
         match_results['games_played'] += 1
         if elo_result == 0.5:
             match_results['games_drawn'] += 1
@@ -194,6 +238,26 @@ class Orchestrator:
             self.records[a]['matches_lost'] += 1
             self.records[b]['matches_won'] += 1
 
+    def update_pairwise_records(self, player_a, player_b, match_results):
+        pair_key = tuple(sorted((player_a.bot_name, player_b.bot_name)))
+        if pair_key not in self.pairwise_records:
+            self.pairwise_records[pair_key] = {
+                player_a.bot_name: self.initialize_record(player_a.bot_name),
+                player_b.bot_name: self.initialize_record(player_b.bot_name)
+            }
+
+        self.pairwise_records[pair_key][player_a.bot_name]['matches_played'] += 1
+        self.pairwise_records[pair_key][player_a.bot_name]['games_played'] += match_results['games_played']
+        self.pairwise_records[pair_key][player_a.bot_name]['games_won'] += match_results['a_games_won']
+        self.pairwise_records[pair_key][player_a.bot_name]['games_lost'] += match_results['a_games_lost']
+        self.pairwise_records[pair_key][player_a.bot_name]['games_drawn'] += match_results['games_drawn']
+
+        self.pairwise_records[pair_key][player_b.bot_name]['matches_played'] += 1
+        self.pairwise_records[pair_key][player_b.bot_name]['games_played'] += match_results['games_played']
+        self.pairwise_records[pair_key][player_b.bot_name]['games_won'] += match_results['b_games_won']
+        self.pairwise_records[pair_key][player_b.bot_name]['games_lost'] += match_results['b_games_lost']
+        self.pairwise_records[pair_key][player_b.bot_name]['games_drawn'] += match_results['games_drawn']
+
     def record_match(self, player, opponent, result):
         """Updates ELO of player and opponent
         result is 0 for a loss; 0.5 for a draw; 1 for a win
@@ -236,3 +300,30 @@ class Orchestrator:
                 self.pretty_print(value, indent+1)
             else:
                 print('\t' * (indent+1) + str(value))
+
+    def visualize_results(self):
+        bot_names = [player.bot_name for player in self.player_pool]
+        pd.options.display.float_format = '{:.0f}'.format
+
+        elos = {}
+        for bot_name in bot_names:
+            elo = self.records[bot_name]["elo"]
+            elos[bot_name] = elo
+
+        sorted_bot_names = sorted(bot_names, key=lambda x: elos[x], reverse=True)
+
+        data = pd.DataFrame(index=sorted_bot_names, columns=sorted_bot_names)
+        for bot_name in sorted_bot_names:
+            data.loc[bot_name, bot_name] = round(self.records[bot_name]["elo"], 4)
+        for pair, result in self.pairwise_records.items():
+            data.loc[pair[0], pair[1]] = round(result[pair[0]]["pairwise_elo"], 4)
+            data.loc[pair[1], pair[0]] = round(result[pair[1]]["pairwise_elo"], 4)
+
+        data = data.apply(pd.to_numeric)
+        print(data)
+        plt.figure(figsize=(10, 10))
+        ax = sns.heatmap(data, annot=True, cmap="flare", center=0, fmt='.0f')
+        ax.tick_params(top=True, bottom=False, labeltop=True, labelbottom=False)
+        ax.xaxis.set_label_position('top')
+        plt.xticks(rotation=45)
+        plt.show()

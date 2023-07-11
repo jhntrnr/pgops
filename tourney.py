@@ -44,19 +44,18 @@ def get_args():
                         help='Number of games per match')
     parser.add_argument('-t', '--tournaments', type=int, default=3,
                         help='Number of tournaments to run')
-
+    parser.add_argument('-f', '--format', default='round_robin',
+                        help='Tournament format')
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = get_args()
 
-    try:
-        player_pool = load_bots(args.bot_dir, args.game_type)
-        tournament = Orchestrator(game_type=args.game_type,
-                                  player_pool=player_pool,
-                                  tournament_style="round_robin",
-                                  matches_per_pairing=args.matches,
-                                  games_per_match=args.games,
-                                  num_tournaments=args.tournaments)
-    except Exception as e:
-        print(f"An error occurred: {e}")
+
+    player_pool = load_bots(args.bot_dir, args.game_type)
+    tournament = Orchestrator(game_type=args.game_type,
+                                player_pool=player_pool,
+                                tournament_format=args.format,
+                                matches_per_pairing=args.matches,
+                                games_per_match=args.games,
+                                num_tournaments=args.tournaments)
